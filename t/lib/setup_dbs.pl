@@ -6,18 +6,13 @@ use File::Temp 'tempfile';
 
 my @cleanup;
 
-END {
-  &$_ foreach @cleanup;
-}
-
 sub setup {
-  my ($dbh, $dbname) = @_;
-  Class::Persist->dbh($dbh);
-  eval {Class::Persist->destroy_DB_infrastructure()};
-  ok (Class::Persist->setup_DB_infrastructure(), "Setup for $dbname");
+  my ($classname, $dbh, $dbname) = @_;
+  $classname->dbh($dbh);
+  eval {$classname->destroy_DB_infrastructure()};
   push @cleanup, sub {
-    Class::Persist->dbh($dbh);
-    Class::Persist->destroy_DB_infrastructure();
+    $classname->dbh($dbh);
+    $dbh->disconnect;
   }
 }
 
@@ -35,10 +30,22 @@ sub setup {
       my (undef, $dbfile) = tempfile();
       push @cleanup, sub {unlink $dbfile if -e $dbfile };
 
+      # connect as if we're SQLite 2, with the null escaping - this is
+      # ignored by later versions, so it's safe.
       return DBI->connect("dbi:SQLite:dbname=$dbfile", '', '',
         { AutoCommit => 1,
           PrintError => 0,
           sqlite_handle_binary_nulls=>1
+        });
+    } elsif ($dbname eq 'SQLite2' ) {
+      # Can we manage a SQLite2 DB?
+      my (undef, $dbfile) = tempfile();
+      push @cleanup, sub {unlink $dbfile if -e $dbfile };
+
+      return DBI->connect("dbi:SQLite2:dbname=$dbfile", '', '',
+        { AutoCommit => 1,
+          PrintError => 0,
+          sqlite_handle_binary_nulls=>1 # needed for BLOB storage
         });
     } elsif ($dbname eq 'MySQL') {
       $dbh = DBI->connect('DBI:mysql:database=test', '', '',
@@ -58,8 +65,9 @@ sub setup {
 }
 
 sub test_sub_with_dbs {
-  my ($db_names, $sub) = @_;
-  $db_names ||= [qw (SQLite Pg MySQL)];
+  my ($classname, $db_names, $sub) = @_;
+  $classname ||= 'Class::Persist';
+  $db_names ||= [qw (SQLite2 SQLite MySQL Pg)];
   my $dbs;
 
   foreach my $name (@$db_names) {
@@ -67,8 +75,10 @@ sub test_sub_with_dbs {
 
     if ($dbh) {
       $dbs++;
-      setup ($dbh, $name);
+      setup ($classname, $dbh, $name);
       &$sub($dbh, $name);
+      &$_ for @cleanup;
+      @cleanup = ();
     }
   }
   fail ("No DBs found to test with") unless $dbs;

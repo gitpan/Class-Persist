@@ -1,7 +1,67 @@
-0.02	Monday 23rd August, 2004
-	Improved the code example in SYNOPSIS
-	Frobbed search to take no query, and documented the order_by parameter.
-	Tweaked ->set to set multiple key/value pairs in one call.
+0.30  2004/12/03 Tom Insam
 
-0.01	Thursday 15th July, 2004
-	Initial CPAN release
+I've completely removed the Tracker and Deleted tables, along with the
+setup_DB_infrastructure and destroy_DB_infrastructure calls. We don't store
+deleted objects at all now, once deleted they're gone, and tracking object
+classes is just done by iterating through every class till we find the
+right one - this has been made cheap by the object cache.
+
+creation_date and timestamp are now stored as DATETIME column types, in
+mysql dbs anyway. timestamp has changed from a TIMESTAMP column, that for
+some reason mysql wasn't updating properly, to a simple datetime col that
+we set to 'now' in perl space at every store.
+
+      2004/11/25 Tom Insam
+
+has_a relationships are no longer handled magically in private methods - we
+install db_inflate_<column> and db_deflate_<column> methods that know how to
+handle them. This has the secondary advantage that the object state is never
+collapsed to oids in a hash - the accessors will _always_ have the objects in.
+
+might_have relationships are no longer special either - they act exactly like
+has_a relationships, except that you don't need a column in the owning
+table for them. This is a change from the previous behaviour, where there
+was always a proxy in their place, that meremly might not be able to
+inflate. The old behaviour was inconsistent and confusing.
+
+Class::Persist::Proxy::Collection had almost nothing to do with
+Class::Persist::Proxy - it has been moved to Class::Persist::Collection, is no
+longer a subclass of Class::Persist::Proxy, and the confusing code that was
+shared between the two has been split up and simplified.
+
+Proxies now proxy an oid, for a class. Nothing else. When created, you have
+to specify the oid and the class as params to the new() call - proxies can
+never be just floating objects.
+
+The big change is the singleton cache. Singleton is the wrong word here -
+the concept is that requesting an object of a given ID will always give you
+the same instance of that object. It should not ever be possible to get two
+seperate instances of an object with the same ID. Because of this, various
+operations, like asking for a proxy of an object, will actually return the
+real copy of the object, if there's an instance of it in memory. The cache
+is implemented in Class::Perist::Cache, and is a hashref of _weak_ references
+to the objects, so it's not a source of circular references.
+
+Because of the singleton cache, I've removed every fixed 'upwards' reference
+in Class::Persist - object don't link to their parents or containing collections,
+all 'strong' references are from the parent to the child. The owner() method
+will fetch the right object out of the singleton cache of possible, or a
+proxy otherwise. This means that Class::Persist should never contain circular
+references unless there is a circular loop in the object tree, which is
+wrong and will break right now anyway.
+
+0.05  2004/11/04 Tom Insam
+
+Added a Class::Perist subclass that stores various fields of the object
+in a blob, in a similar fashion to Vx, so you can add data to an object
+without having to change the DB spec.
+
+0.02  Monday 23rd August, 2004
+
+Improved the code example in SYNOPSIS
+Frobbed search to take no query, and documented the order_by parameter.
+Tweaked ->set to set multiple key/value pairs in one call.
+
+0.01  Thursday 15th July, 2004
+
+Initial CPAN release
