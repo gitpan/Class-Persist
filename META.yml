@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name: Class-Persist
-version: 0.01
+version: 0.02
 author: ~
 abstract: Persistency framework for objects
 license: perl
@@ -21,7 +21,7 @@ build_requires:
 provides:
   Class::Persist:
     file: lib/Class/Persist.pm
-    version: 0.01
+    version: 0.02
   Class::Persist::Base:
     file: lib/Class/Persist/Base.pm
     version: 0.01

@@ -55,15 +55,17 @@ sub _accessor {
   }
 }
 
-=head2 set( column, value )
+=head2 set( column => value, [ column => value ... ] )
 
 =cut
 
 sub set {
   my $self = shift;
-  my $col = shift;
-  my $value = shift;
-  $self->{$col} = $value;
+  while (@_) {
+    my $col = shift;
+    my $value = shift;
+    $self->{$col} = $value;
+  }
   return $self;
 }
 

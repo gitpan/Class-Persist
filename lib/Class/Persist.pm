@@ -4,17 +4,20 @@ Class::Persist - Persistency framework for objects
 
 =head1 SYNOPSIS
 
+  package My::Person;
   use base qw( Class::Persist );
   __PACKAGE__->dbh( $dbh );
-  __PACKAGE__->might_have( address => 'My::Address' );
-  __PACKAGE__->has_many( phone => 'My::Phone' );
-  __PACKAGE__->db_table( 'mytable' );
-  __PACKAGE__->db_fields( qw( first_name last_name ) );
-  sub db_fields_spec {
-    shift->SUPER::db_fields_spec,
-    'first_name VARCHAR(255)',
-    'last_name VARCHAR(255)',
-  ) }
+  __PACKAGE__->simple_db_spec(
+    first_name => 'CHAR(30)',
+    last_name  => 'CHAR(30)',
+    address => "My::Address",  # has_a relationship
+    phones => [ "My::Phone" ], # has_many relationship
+  );
+
+  my $person = My::Person->new( first_name => "Dave" );
+  $person->addesss( My::Address->new );
+  $person->store;
+  
 
 =head1 DESCRIPTION
 
@@ -30,7 +33,7 @@ Provides the framework to persist the objects in a DB in a Class::DBI style
 
 package Class::Persist;
 use strict;
-use warnings::register;
+use warnings;
 use Class::ISA;
 use DateTime;
 use Scalar::Util qw(blessed);
@@ -42,7 +45,7 @@ use Class::Persist::Proxy::Collection;
 
 use base qw(Class::Persist::Base Class::Data::Inheritable);
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 our $ID_FIELD = "OI";
 
@@ -1088,6 +1091,11 @@ criteria.
 
   my $pears = Fruit->search( shape => 'pear' );
 
+The special parameter 'order_by' will not be used as part of the search, but
+will order the results by that column.
+
+  my $sorted_pears = Fruit->search( shape => 'pear', order_by => 'size' );
+
 =cut
 
 sub search {
@@ -1105,6 +1113,8 @@ sub search {
     $sql = join( " AND ", map {
       defined($param->{$_}) ? "$_ = ?" : "$_ IS NULL"
     } keys(%$param) );
+  } else {
+    $sql = "1=1";
   }
   $sql .= ' ORDER BY '.$order_by if $order_by;
 
